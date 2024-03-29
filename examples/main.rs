@@ -3,7 +3,8 @@ use msbuild::MsBuild;
 fn main() {
     let mb = MsBuild::find_msbuild();
     match mb {
-        Ok(msb) => {
+        Ok(mut msb) => {
+            msb.run();
             println!("Found msbuild");
         }
         Err(_) => {

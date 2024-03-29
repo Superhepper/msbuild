@@ -1,4 +1,10 @@
-pub struct MsBuild {}
+use std::path::PathBuf;
+
+use serde_json::Value;
+
+pub struct MsBuild {
+    path: PathBuf,
+}
 
 impl MsBuild {
     pub fn find_msbuild() -> Result<Self, std::io::Result<()>> {
@@ -8,7 +14,23 @@ impl MsBuild {
         .args(["-legacy", "-prerelease", "-format", "json"])
         .output()
         .expect("Failed to run vswhere");
-        println!("Output: {}", std::str::from_utf8(&output.stdout).unwrap());
-        Ok(Self {})
+        let o = std::str::from_utf8(&output.stdout).unwrap();
+        println!("Output: {}", o);
+
+        let v: Value = serde_json::from_str(o).unwrap();
+        println!("{:?}", v);
+        let c = v.get(0).unwrap();
+        let p = c.get("installationPath").unwrap();
+        
+        let pb: PathBuf = PathBuf::from(p.as_str().unwrap());
+        println!("path: {:?}", pb);
+        Ok(Self {
+            path: pb,
+        })
+    }
+
+    pub fn run(&mut self) {
+        let pb = self.path.join("MsBuild").join("Current").join("Run");
+        println!("Msbuild is in {:?}", pb);
     }
 }
