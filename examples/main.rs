@@ -4,7 +4,7 @@ fn main() {
     let mb = MsBuild::find_msbuild();
     match mb {
         Ok(mut msb) => {
-            msb.run();
+            msb.run("./".into(), &[]);
             println!("Found msbuild");
         }
         Err(_) => {

@@ -15,22 +15,22 @@ impl MsBuild {
         .output()
         .expect("Failed to run vswhere");
         let o = std::str::from_utf8(&output.stdout).unwrap();
-        println!("Output: {}", o);
-
         let v: Value = serde_json::from_str(o).unwrap();
-        println!("{:?}", v);
         let c = v.get(0).unwrap();
         let p = c.get("installationPath").unwrap();
-        
         let pb: PathBuf = PathBuf::from(p.as_str().unwrap());
-        println!("path: {:?}", pb);
-        Ok(Self {
-            path: pb,
-        })
+        Ok(Self { path: pb })
     }
 
-    pub fn run(&mut self) {
-        let pb = self.path.join("MsBuild").join("Current").join("Run");
+    pub fn run(&mut self, project_path: PathBuf, args: &[&str]) {
+        let pb = self.path.join("MsBuild").join("Current").join("Bin");
         println!("Msbuild is in {:?}", pb);
+        let output = std::process::Command::new(pb.join("MSBuild.exe"))
+            .current_dir(project_path)
+            .args(args)
+            .output()
+            .expect("Failed to run msbuild");
+        let o = std::str::from_utf8(&output.stdout).unwrap();
+        println!("{}", o);
     }
 }
