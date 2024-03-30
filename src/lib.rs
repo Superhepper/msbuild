@@ -1,4 +1,4 @@
-use std::{io::Error, path::PathBuf};
+use std::{io::Error, num::ParseFloatError, path::PathBuf};
 
 use serde_json::Value;
 
@@ -23,6 +23,7 @@ impl MsBuild {
             let pb: PathBuf = PathBuf::from(p.as_str().unwrap());
             if let Some(ver) = ver {
                 if version == ver {
+                    println!("Options: {:?}", c);
                     return Ok(Self { path: pb} );
                 }
             }
@@ -34,8 +35,20 @@ impl MsBuild {
     }
 
     pub fn run(&mut self, project_path: PathBuf, args: &[&str]) {
-        let pb = self.path.join("MsBuild").join("Current").join("Bin");
-        println!("Msbuild is in {:?}", pb);
+        let mut pb = self.path.join("MsBuild");
+        
+        for els in std::fs::read_dir(&pb).unwrap() {
+            let name = els.unwrap().file_name();
+            let name = name.to_str().unwrap();
+            let version: Result<f32, ParseFloatError> = name.parse();
+            if version.is_ok() {
+                pb = pb.join(name);
+            }
+            if name == "Current" {
+                pb = pb.join(name);
+            }
+        }
+        let pb = pb.join("Bin");
         let output = std::process::Command::new(pb.join("MSBuild.exe"))
             .current_dir(project_path)
             .args(args)
