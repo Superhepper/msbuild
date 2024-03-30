@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{io::Error, path::PathBuf};
 
 use serde_json::Value;
 
@@ -7,7 +7,7 @@ pub struct MsBuild {
 }
 
 impl MsBuild {
-    pub fn find_msbuild() -> Result<Self, std::io::Result<()>> {
+    pub fn find_msbuild(ver: Option<&str>) -> Result<Self, std::io::Result<()>> {
         let output = std::process::Command::new(
             "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe",
         )
@@ -16,10 +16,21 @@ impl MsBuild {
         .expect("Failed to run vswhere");
         let o = std::str::from_utf8(&output.stdout).unwrap();
         let v: Value = serde_json::from_str(o).unwrap();
-        let c = v.get(0).unwrap();
-        let p = c.get("installationPath").unwrap();
-        let pb: PathBuf = PathBuf::from(p.as_str().unwrap());
-        Ok(Self { path: pb })
+        for c in v.as_array().unwrap().iter() {
+            let catalog = c.get("catalog").unwrap();
+            let version = catalog.get("productLineVersion").unwrap();
+            let p = c.get("installationPath").unwrap();
+            let pb: PathBuf = PathBuf::from(p.as_str().unwrap());
+            if let Some(ver) = ver {
+                if version == ver {
+                    return Ok(Self { path: pb} );
+                }
+            }
+            else {
+                return Ok(Self { path: pb} );
+            }
+        }
+        Err(std::io::Result::Err(Error::other("Not found")))
     }
 
     pub fn run(&mut self, project_path: PathBuf, args: &[&str]) {
