@@ -1,4 +1,4 @@
-use std::{io::Error, num::ParseFloatError, path::PathBuf};
+use std::{io::Error, num::ParseFloatError, path::PathBuf, process::ExitStatus};
 
 use serde_json::Value;
 
@@ -56,5 +56,8 @@ impl MsBuild {
             .expect("Failed to run msbuild");
         let o = std::str::from_utf8(&output.stdout).unwrap();
         println!("{}", o);
+        if output.status.code().is_some() {
+            panic!("Failed to run build");
+        }
     }
 }
