@@ -65,7 +65,9 @@ impl MsBuild {
         let o = std::str::from_utf8(&output.stdout).unwrap();
         println!("{}", o);
         if let Some(c) = output.status.code() {
-            panic!("Failed to run build {c}");
+            if c != 0 {
+                panic!("Failed to run build {c}");
+            }
         }
     }
 }
