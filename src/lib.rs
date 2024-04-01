@@ -55,9 +55,6 @@ impl MsBuild {
             .expect("Failed to import vars");
         let o = std::str::from_utf8(&output.stdout).unwrap();
         println!("{}", o);
-        if output.status.code().is_some() {
-            panic!("Failed to run import vars");
-        }
     }
 
     pub fn run(&mut self, project_path: PathBuf, args: &[&str]) {
