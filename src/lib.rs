@@ -42,21 +42,6 @@ impl MsBuild {
         Err(std::io::Result::Err(Error::other("Not found")))
     }
 
-    pub fn import_vars(&mut self) {
-        let pb = self
-            .install
-            .join("VC")
-            .join("Auxiliary")
-            .join("Build")
-            .join("vcvarsall.bat");
-        let output = std::process::Command::new(pb)
-            .args(["x64"])
-            .output()
-            .expect("Failed to import vars");
-        let o = std::str::from_utf8(&output.stdout).unwrap();
-        println!("{}", o);
-    }
-
     pub fn run(&mut self, project_path: PathBuf, args: &[&str]) {
         let mut pb = self.path.join("MsBuild");
 
@@ -79,8 +64,8 @@ impl MsBuild {
             .expect("Failed to run msbuild");
         let o = std::str::from_utf8(&output.stdout).unwrap();
         println!("{}", o);
-        if output.status.code().is_some() {
-            panic!("Failed to run build");
+        if let Some(c) = output.status.code() {
+            panic!("Failed to run build {c}");
         }
     }
 }
