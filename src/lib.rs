@@ -1,10 +1,9 @@
-use std::{io::Error, num::ParseFloatError, path::PathBuf, process::ExitStatus};
+use std::{io::Error, num::ParseFloatError, path::PathBuf};
 
 use serde_json::Value;
 
 pub struct MsBuild {
     path: PathBuf,
-    install: PathBuf,
 }
 
 impl MsBuild {
@@ -22,24 +21,20 @@ impl MsBuild {
             let version = catalog.get("productLineVersion").unwrap();
             let p = c.get("installationPath").unwrap();
             let pb: PathBuf = PathBuf::from(p.as_str().unwrap());
-            let p2 = c.get("resolvedInstallationPath").unwrap();
-            let pb2 = PathBuf::from(p2.as_str().unwrap());
             if let Some(ver) = ver {
                 if version == ver {
                     println!("Options: {:?}", c);
                     return Ok(Self {
                         path: pb,
-                        install: pb2,
                     });
                 }
             } else {
                 return Ok(Self {
                     path: pb,
-                    install: pb2,
                 });
             }
         }
-        Err(std::io::Result::Err(Error::other("Not found")))
+        Err(std::io::Result::Err(Error::new(std::io::ErrorKind::NotFound, "Not found")))
     }
 
     pub fn run(&mut self, project_path: PathBuf, args: &[&str]) {
