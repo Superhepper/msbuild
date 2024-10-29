@@ -11,7 +11,14 @@ impl MsBuild {
         let output = std::process::Command::new(
             "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe",
         )
-        .args(["-legacy", "-prerelease", "-format", "json"])
+        .args([
+            "-legacy",
+            "-prerelease",
+            "-format",
+            "json",
+            "-products",
+            "*",
+        ])
         .output()
         .expect("Failed to run vswhere");
         let o = std::str::from_utf8(&output.stdout).unwrap();
