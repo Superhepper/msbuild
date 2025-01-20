@@ -1,9 +1,10 @@
 [package]
 name = "msbuild"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Allows builds to run msbuild for visual studio projects"
 license = "MIT"
+repository = "https://github.com/uglyoldbob/msbuild"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
