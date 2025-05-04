@@ -12,6 +12,10 @@
 //!   Note! The path must still lead to a binary the fullfills the version
 //!   requirements otherwise the crate will try to probe the system
 //!   for a suitable version.
+//!
+//! - The `WIN_SDK_PATH` environment variable can be used in order to
+//!   to overwrite in what location the library will search for
+//!   WinSDK installations.
 use lenient_semver::Version;
 use serde_json::Value;
 use std::{
@@ -20,62 +24,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Type for finding and interacting with the
-/// vswhere executable.
-pub struct VsWhere {
-    path: PathBuf,
-}
+pub mod vs_where;
+pub mod win_sdk;
 
-impl VsWhere {
-    const DEFAULT_PATH: &'static str =
-        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe";
-    const ENV_KEY: &'static str = "VS_WHERE_PATH";
-    const DEFAULT_ARGS: [&'static str; 6] = [
-        "-legacy",
-        "-prerelease",
-        "-format",
-        "json",
-        "-products",
-        "*",
-    ];
-
-    /// Creates a VsWhere object if the `vswhere.exe`binary can be found.
-    pub fn find_vswhere() -> std::io::Result<Self> {
-        let path: PathBuf = VsWhere::vswhere_path();
-        if path.exists() {
-            Ok(VsWhere { path })
-        } else {
-            Err(Error::new(
-                ErrorKind::NotFound,
-                format!("The path [{}] does not exists.", path.to_string_lossy()),
-            ))
-        }
-    }
-
-    /// Runs the executable with the provided argument
-    /// or default argument if no arguments are provided.
-    pub fn run(self, args: Option<&[&str]>) -> std::io::Result<String> {
-        let command_args: &[&str] = args.unwrap_or(VsWhere::DEFAULT_ARGS.as_ref());
-        std::process::Command::new(self.path)
-            .args(command_args)
-            .output()
-            .and_then(|output: std::process::Output| {
-                std::str::from_utf8(&output.stdout).map_or_else(
-                    |e: std::str::Utf8Error| {
-                        Err(Error::new(
-                            ErrorKind::InvalidData,
-                            format!("Command output could not be parsed as UTF-8 ({}).", e),
-                        ))
-                    },
-                    |v: &str| Ok(v.to_string()),
-                )
-            })
-    }
-
-    fn vswhere_path() -> PathBuf {
-        PathBuf::from(std::env::var(VsWhere::ENV_KEY).unwrap_or(VsWhere::DEFAULT_PATH.to_string()))
-    }
-}
+pub use vs_where::VsWhere;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct InstallationVersion<'a>(Version<'a>);
@@ -366,234 +318,236 @@ impl MsBuild {
 // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Unit tests of the private functions and methods
 // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#[ignore]
-#[test]
-fn test_vswhere_find_vswhere_internal() {
-    // Cannot run the tests unless vswhere has
-    // been installed into the test environment.
-}
+#[cfg(test)]
+mod test {
+    use super::*;
 
-#[test]
-fn test_msbuild_has_version_in_range() {
-    let max = Some(
-        Version::parse("4.3.2.1")
-            .expect("It should be possible to create a Version object from the string 4.3.2.1"),
-    );
-    let min = Some(
-        Version::parse("1.2.3.4")
-            .expect("It should be possible to create a Version object from the string 1.2.3.4"),
-    );
-    // Check with no min or max
-    assert!(
-        MsBuild::has_version_in_range(
-            &Version::parse("0.0.0.0")
-                .expect("It should be possible to create a Version object from the string 0.0.0.0"),
-            None,
-            None
-        ),
-        "The version 0.0.0.0 should be in range when no min or max values have been specified."
-    );
-    // Check outside of range with min value.
-    assert!(
-        !MsBuild::has_version_in_range(
-            &Version::parse("0.0.0.0")
-                .expect("It should be possible to create a Version object from the string 0.0.0.0"),
-            None,
-            min.as_ref()
-        ),
-        "The version 0.0.0.0 should not be in range when min is 1.2.3.4"
-    );
-    // Check inside of range with min value
-    assert!(
-        MsBuild::has_version_in_range(
-            &Version::parse("1.2.3.300").expect(
-                "It should be possible to create a Version object from the string 1.2.3.300"
+    #[test]
+    fn test_msbuild_has_version_in_range() {
+        let max = Some(
+            Version::parse("4.3.2.1")
+                .expect("It should be possible to create a Version object from the string 4.3.2.1"),
+        );
+        let min = Some(
+            Version::parse("1.2.3.4")
+                .expect("It should be possible to create a Version object from the string 1.2.3.4"),
+        );
+        // Check with no min or max
+        assert!(
+            MsBuild::has_version_in_range(
+                &Version::parse("0.0.0.0").expect(
+                    "It should be possible to create a Version object from the string 0.0.0.0"
+                ),
+                None,
+                None
             ),
-            None,
-            min.as_ref()
-        ),
-        "The version 1.2.3.300 should be in range when min is 1.2.3.4 and no max is given."
-    );
-    // Check out of range with max value
-    assert!(
-        !MsBuild::has_version_in_range(
-            &Version::parse("4.3.2.11").expect(
-                "It should be possible to create a Version object from the string 4.3.2.11"
+            "The version 0.0.0.0 should be in range when no min or max values have been specified."
+        );
+        // Check outside of range with min value.
+        assert!(
+            !MsBuild::has_version_in_range(
+                &Version::parse("0.0.0.0").expect(
+                    "It should be possible to create a Version object from the string 0.0.0.0"
+                ),
+                None,
+                min.as_ref()
             ),
-            max.as_ref(),
-            None,
-        ),
-        "The version 4.3.2.11 should not be in range when max is 4.3.2.1 and no min is given."
-    );
-    // Check in range with max value
-    assert!(
-        MsBuild::has_version_in_range(
-            &Version::parse("4.0.2.11").expect(
-                "It should be possible to create a Version object from the string 4.0.2.11"
+            "The version 0.0.0.0 should not be in range when min is 1.2.3.4"
+        );
+        // Check inside of range with min value
+        assert!(
+            MsBuild::has_version_in_range(
+                &Version::parse("1.2.3.300").expect(
+                    "It should be possible to create a Version object from the string 1.2.3.300"
+                ),
+                None,
+                min.as_ref()
             ),
-            max.as_ref(),
-            None,
-        ),
-        "The version 4.3.2.11 should not be in range when max is 4.3.2.1 and no min is given."
-    );
-    // Check in range with min and max
-    assert!(
-        MsBuild::has_version_in_range(
-            &Version::parse("4.0.2.11").expect(
-                "It should be possible to create a Version object from the string 4.0.2.11"
+            "The version 1.2.3.300 should be in range when min is 1.2.3.4 and no max is given."
+        );
+        // Check out of range with max value
+        assert!(
+            !MsBuild::has_version_in_range(
+                &Version::parse("4.3.2.11").expect(
+                    "It should be possible to create a Version object from the string 4.3.2.11"
+                ),
+                max.as_ref(),
+                None,
             ),
-            max.as_ref(),
-            min.as_ref(),
-        ),
-        "The version 4.3.2.11 should not be in range when max is 4.3.2.1 and no max is given."
-    );
-}
+            "The version 4.3.2.11 should not be in range when max is 4.3.2.1 and no min is given."
+        );
+        // Check in range with max value
+        assert!(
+            MsBuild::has_version_in_range(
+                &Version::parse("4.0.2.11").expect(
+                    "It should be possible to create a Version object from the string 4.0.2.11"
+                ),
+                max.as_ref(),
+                None,
+            ),
+            "The version 4.3.2.11 should not be in range when max is 4.3.2.1 and no min is given."
+        );
+        // Check in range with min and max
+        assert!(
+            MsBuild::has_version_in_range(
+                &Version::parse("4.0.2.11").expect(
+                    "It should be possible to create a Version object from the string 4.0.2.11"
+                ),
+                max.as_ref(),
+                min.as_ref(),
+            ),
+            "The version 4.3.2.11 should not be in range when max is 4.3.2.1 and no max is given."
+        );
+    }
 
-#[test]
-fn test_msbuild_parse_installation_version() {
-    let version_str = "2.3.1.34";
-    let json_value = serde_json::json!({
-        "instanceId": "VisualStudio.14.0",
-        "installationPath": "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\",
-        "installationVersion": version_str
-    });
-    let expected = Version::parse(version_str)
-        .map(InstallationVersion)
-        .expect("It should be possible to parse the `version_str` as Version object.");
-    let actual = MsBuild::parse_installation_version(&json_value)
-        .expect("The function should be to extract an installation version from the json_value.");
-    assert_eq!(expected, actual);
-}
-
-#[test]
-fn test_msbuild_parse_installation_path() {
-    let expected = Path::new("C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\");
-    let json_value = serde_json::json!({
-        "instanceId": "019109ba",
-        "installDate": "2023-08-26T14:05:02Z",
-        "installationName": "VisualStudio/17.12.0+35506.116",
-        "installationPath": expected.to_string_lossy(),
-        "installationVersion": "17.12.35506.116",
-        "productId": "Microsoft.VisualStudio.Product.Community",
-        "productPath": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\devenv.exe",
-    });
-    let actual = MsBuild::parse_installation_path(&json_value)
-        .expect("The function should be to extract an installation path from the json_value.");
-    assert_eq!(expected, actual);
-}
-
-#[test]
-fn test_msbuild_validate_instances_json() {
-    let json_value = serde_json::json!([
-        {
+    #[test]
+    fn test_msbuild_parse_installation_version() {
+        let version_str = "2.3.1.34";
+        let json_value = serde_json::json!({
+            "instanceId": "VisualStudio.14.0",
             "installationPath": "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\",
-            "installationVersion": "14.0",
-        },
-        {
-            "installationPath": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community",
+            "installationVersion": version_str
+        });
+        let expected = Version::parse(version_str)
+            .map(InstallationVersion)
+            .expect("It should be possible to parse the `version_str` as Version object.");
+        let actual = MsBuild::parse_installation_version(&json_value).expect(
+            "The function should be to extract an installation version from the json_value.",
+        );
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_msbuild_parse_installation_path() {
+        let expected = Path::new("C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\");
+        let json_value = serde_json::json!({
+            "instanceId": "019109ba",
+            "installDate": "2023-08-26T14:05:02Z",
+            "installationName": "VisualStudio/17.12.0+35506.116",
+            "installationPath": expected.to_string_lossy(),
             "installationVersion": "17.12.35506.116",
-        },
-        {
-            "installationPath": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise",
-            "installationVersion": "17.08.35506.116",
-        },
-    ]);
+            "productId": "Microsoft.VisualStudio.Product.Community",
+            "productPath": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\devenv.exe",
+        });
+        let actual = MsBuild::parse_installation_path(&json_value)
+            .expect("The function should be to extract an installation path from the json_value.");
+        assert_eq!(expected, actual);
+    }
 
-    let values: &Vec<Value> = json_value
-        .as_array()
-        .expect("It should be possible to parse the json as an array of objects.");
+    #[test]
+    fn test_msbuild_validate_instances_json() {
+        let json_value = serde_json::json!([
+            {
+                "installationPath": "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\",
+                "installationVersion": "14.0",
+            },
+            {
+                "installationPath": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community",
+                "installationVersion": "17.12.35506.116",
+            },
+            {
+                "installationPath": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise",
+                "installationVersion": "17.08.35506.116",
+            },
+        ]);
 
-    // Sanity check.
-    assert_eq!(
-        values.len(),
-        3,
-        "There should be 3 instances: \n {:?}",
-        values
-    );
+        let values: &Vec<Value> = json_value
+            .as_array()
+            .expect("It should be possible to parse the json as an array of objects.");
 
-    let min = Some(
-        Version::parse("17.9")
+        // Sanity check.
+        assert_eq!(
+            values.len(),
+            3,
+            "There should be 3 instances: \n {:?}",
+            values
+        );
+
+        let min = Some(
+            Version::parse("17.9")
+                .map(InstallationVersion)
+                .expect("It should be possible to parse the 17.9 as a version."),
+        );
+        let max = Some(
+            Version::parse("18.0")
+                .map(InstallationVersion)
+                .expect("It should be possible to parse the 18.0 as a version."),
+        );
+        let validated_instances =
+            MsBuild::validate_instances_json(values.as_slice(), max.as_ref(), min.as_ref());
+        let expected_version = Version::parse("17.12.35506.116")
             .map(InstallationVersion)
-            .expect("It should be possible to parse the 17.9 as a version."),
-    );
-    let max = Some(
-        Version::parse("18.0")
-            .map(InstallationVersion)
-            .expect("It should be possible to parse the 18.0 as a version."),
-    );
-    let validated_instances =
-        MsBuild::validate_instances_json(values.as_slice(), max.as_ref(), min.as_ref());
-    let expected_version = Version::parse("17.12.35506.116")
-        .map(InstallationVersion)
-        .expect("It should be possible to parse avlid version.");
-    let expected_path = Path::new("C:\\Program Files\\Microsoft Visual Studio\\2022\\Community");
-    assert_eq!(
-        validated_instances.len(),
-        1,
-        "There should only be 1 element found."
-    );
-    let (actual_version, actual_path) = validated_instances.first().unwrap();
-    assert_eq!(
-        expected_version, *actual_version,
-        "The returned version was not the expected one",
-    );
-    assert_eq!(
-        expected_path, *actual_path,
-        "The returned path was not the expected one."
-    );
-}
+            .expect("It should be possible to parse avlid version.");
+        let expected_path =
+            Path::new("C:\\Program Files\\Microsoft Visual Studio\\2022\\Community");
+        assert_eq!(
+            validated_instances.len(),
+            1,
+            "There should only be 1 element found."
+        );
+        let (actual_version, actual_path) = validated_instances.first().unwrap();
+        assert_eq!(
+            expected_version, *actual_version,
+            "The returned version was not the expected one",
+        );
+        assert_eq!(
+            expected_path, *actual_path,
+            "The returned path was not the expected one."
+        );
+    }
 
-#[test]
-fn test_msbuild_find_match() {
-    let json_value = serde_json::json!([
-        {
-            "installationPath": "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\",
-            "installationVersion": "14.0",
-        },
-        {
-            "installationPath": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community",
-            "installationVersion": "17.12.35506.116",
-        },
-        {
-            "installationPath": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise",
-            "installationVersion": "17.08.35506.116",
-        },
-    ]);
+    #[test]
+    fn test_msbuild_find_match() {
+        let json_value = serde_json::json!([
+            {
+                "installationPath": "C:\\Program Files (x86)\\Microsoft Visual Studio 14.0\\",
+                "installationVersion": "14.0",
+            },
+            {
+                "installationPath": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community",
+                "installationVersion": "17.12.35506.116",
+            },
+            {
+                "installationPath": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise",
+                "installationVersion": "17.08.35506.116",
+            },
+        ]);
 
-    let values: &Vec<Value> = json_value
-        .as_array()
-        .expect("It should be possible to parse the json as an array of objects.");
+        let values: &Vec<Value> = json_value
+            .as_array()
+            .expect("It should be possible to parse the json as an array of objects.");
 
-    // Sanity check.
-    assert_eq!(
-        values.len(),
-        3,
-        "There should be 3 instances: \n {:?}",
-        values
-    );
+        // Sanity check.
+        assert_eq!(
+            values.len(),
+            3,
+            "There should be 3 instances: \n {:?}",
+            values
+        );
 
-    // The min and max are now chosen so that they will include
-    // two possible result.
-    let min = Some(
-        Version::parse("17.7")
-            .map(InstallationVersion)
-            .expect("It should be possible to parse the 17.9 as a version."),
-    );
-    let max = Some(
-        Version::parse("18.0")
-            .map(InstallationVersion)
-            .expect("It should be possible to parse the 18.0 as a version."),
-    );
+        // The min and max are now chosen so that they will include
+        // two possible result.
+        let min = Some(
+            Version::parse("17.7")
+                .map(InstallationVersion)
+                .expect("It should be possible to parse the 17.9 as a version."),
+        );
+        let max = Some(
+            Version::parse("18.0")
+                .map(InstallationVersion)
+                .expect("It should be possible to parse the 18.0 as a version."),
+        );
 
-    // The expected values, when no environment variable have been set,
-    // is the one with the latest version.
-    let expected = PathBuf::from("C:\\Program Files\\Microsoft Visual Studio\\2022\\Community");
+        // The expected values, when no environment variable have been set,
+        // is the one with the latest version.
+        let expected = PathBuf::from("C:\\Program Files\\Microsoft Visual Studio\\2022\\Community");
 
-    let actual = MsBuild::find_match(values, max.as_ref(), min.as_ref())
-        .expect("The function is expected to return a valid result.");
+        let actual = MsBuild::find_match(values, max.as_ref(), min.as_ref())
+            .expect("The function is expected to return a valid result.");
 
-    assert_eq!(
-        expected, actual,
-        "The resulting path does not match the expected one."
-    );
+        assert_eq!(
+            expected, actual,
+            "The resulting path does not match the expected one."
+        );
+    }
 }
