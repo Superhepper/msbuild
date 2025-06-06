@@ -1,4 +1,4 @@
-use msbuild::win_sdk::{WinSdk, WinSdkIncludes, WinSdkVersion};
+use msbuild::win_sdk::{WinSdk, WinSdkVersion};
 use std::path::Path;
 use tempfile::tempdir;
 
@@ -8,6 +8,8 @@ struct CategoryFolder {
     expected_dirs: &'static [&'static str],
 }
 
+// This is used to create a valid layout inside the installation
+// folder.
 const CATEGORY_FOLDERS: [CategoryFolder; 8] = [
     CategoryFolder {
         name: "bin",

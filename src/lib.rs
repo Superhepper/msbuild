@@ -9,7 +9,7 @@
 //!
 //! - The `VS_INSTALLATION_PATH` environment variable can be used in order
 //!   to overwrite specify a path to Visual Studio
-//!   Note! The path must still lead to a binary the fullfills the version
+//!   Note! The path must still lead to a binary the fulfills the version
 //!   requirements otherwise the crate will try to probe the system
 //!   for a suitable version.
 //!
@@ -33,7 +33,7 @@ pub use vs_where::VsWhere;
 pub struct InstallationVersion<'a>(Version<'a>);
 
 impl<'a> InstallationVersion<'a> {
-    pub fn parse(value: &'a str) -> std::io::Result<InstallationVersion> {
+    pub fn parse(value: &'a str) -> std::io::Result<InstallationVersion<'a>> {
         Version::parse(value).map_or_else(
             |e| {
                 Err(Error::new(
@@ -172,9 +172,16 @@ impl MsBuild {
                 if out.status.success() {
                     Ok(())
                 } else {
+                    use std::io::Write;
+                    std::io::stdout().write_all(&out.stdout)?;
+                    let error_message = if let Some(code) = out.status.code() {
+                        &format!("Failed to run msbuild: Exit code [{code}]")
+                    } else {
+                        "Failed to run msbuild"
+                    };
                     Err(Error::new(
                         ErrorKind::Other,
-                        format!("Failed to run msbuild: [{:?}]", out.status.code()),
+                        format!("Failed to run msbuild: {error_message}"),
                     ))
                 }
             })
