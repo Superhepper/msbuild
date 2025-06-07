@@ -77,7 +77,7 @@ impl WinSdkIncludes {
 pub struct WinSdkVersion<'a>(Version<'a>);
 
 impl<'a> WinSdkVersion<'a> {
-    pub fn parse(value: &'a str) -> std::io::Result<WinSdkVersion> {
+    pub fn parse(value: &'a str) -> std::io::Result<WinSdkVersion<'a>> {
         Version::parse(value).map_or_else(
             |e| {
                 Err(Error::new(
