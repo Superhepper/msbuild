@@ -1,7 +1,7 @@
 //! Module that contains functionality for programtically
 //! retrieve information about the windows SDKs available on
 //! the system.
-use lenient_semver::Version;
+use crate::{versions::WinSdkVersion, vs_paths::sub_directory};
 use std::{
     collections::BTreeMap,
     fs::DirEntry,
@@ -69,24 +69,6 @@ impl WinSdkIncludes {
         // This should probably include some kind of trace logging
         // explainin why the dir was not valid.
         path.is_dir() && !Self::EXPECTED_DIRS.iter().any(|s| !path.join(s).is_dir())
-    }
-}
-
-/// The windows SDK version.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct WinSdkVersion<'a>(Version<'a>);
-
-impl<'a> WinSdkVersion<'a> {
-    pub fn parse(value: &'a str) -> std::io::Result<WinSdkVersion<'a>> {
-        Version::parse(value).map_or_else(
-            |e| {
-                Err(Error::new(
-                    ErrorKind::InvalidData,
-                    format!("Failed to parse &str as a WinSdkVersion: {}", e),
-                ))
-            },
-            |v| Ok(WinSdkVersion(v)),
-        )
     }
 }
 
@@ -208,9 +190,7 @@ impl WinSdk {
         path.file_name()
             .and_then(|ver_dir| ver_dir.to_str())
             .and_then(|ver_dir_str| WinSdkVersion::parse(ver_dir_str).ok())
-            .map_or(false, |win_sdk_ver| {
-                Self::has_version_in_range(&win_sdk_ver, max, min)
-            })
+            .map_or(false, |win_sdk_ver| win_sdk_ver.is_in_range(max, min))
     }
 
     fn installation_folder() -> std::io::Result<PathBuf> {
@@ -251,34 +231,6 @@ impl WinSdk {
                 Ok(PathBuf::from(path_string))
             })
     }
-
-    /// Internal function to check if a version is in the range
-    /// if it has been specified.
-    fn has_version_in_range(
-        version: &WinSdkVersion,
-        max: Option<&WinSdkVersion>,
-        min: Option<&WinSdkVersion>,
-    ) -> bool {
-        let is_below_max: bool = max.map_or(true, |max_version| max_version > version);
-        let is_above_min: bool = min.map_or(true, |min_version| version >= min_version);
-        is_below_max && is_above_min
-    }
-}
-
-/// Constructs a verified object representing the path to the sub directory.
-fn sub_directory(parent: &Path, dir: &str) -> std::io::Result<PathBuf> {
-    let sub_dir = parent.join(dir);
-    if !sub_dir.is_dir() {
-        return Err(Error::new(
-            ErrorKind::NotFound,
-            format!(
-                "{} does not contain the {} directory.",
-                parent.to_string_lossy(),
-                dir
-            ),
-        ));
-    }
-    Ok(sub_dir)
 }
 
 // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
